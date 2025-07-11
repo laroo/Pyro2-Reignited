@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pyro ][ Reignited</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: monospace; background: #000; color: white; overflow: hidden; }
+        #intro { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(45deg, #001, #003); }
+        #logo { font-size: 48px; font-weight: bold; color: #ff4400; text-shadow: 2px 2px #880000; margin-bottom: 20px; }
+        #subtitle { font-size: 24px; color: #ffaa00; margin-bottom: 40px; }
+        #startBtn { font-size: 20px; padding: 15px 30px; background: #ff4400; color: white; border: none; cursor: pointer; }
+        #startBtn:hover { background: #ff6600; }
+        #game { display: none; padding: 20px; }
+        canvas { border: 2px solid #666; background: #000; }
+        .controls { margin: 10px 0; }
+        .score { font-size: 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div id="intro">
+        <div id="logo">PYRO ][ REIGNITED</div>
+        <div id="subtitle">The Ultimate Destruction Experience</div>
+        <button id="startBtn" onclick="startGame()">START GAME</button>
+    </div>
+    
+    <div id="game">
+        <div class="score"><span id="score">Score: 0 | Bombs: 5 | Timer: 10s | 0/0 walls (0%)</span></div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="controls">
+            <p>WASD: Move (auto-lays fuse) | B: Drop Gas Can | F: Ignite Fuse</p>
+        </div>
+    </div>
+
+    <script>
+        function startGame() {
+            document.getElementById('intro').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+            initializeGame();
+        }
+
+        function initializeGame() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreEl = document.getElementById('score');
+
+            const GRID_SIZE = 20;
+            const COLS = canvas.width / GRID_SIZE;
+            const ROWS = canvas.height / GRID_SIZE;
+
+            let player = { x: 1, y: 1 };
+            let score = 0;
+            let fuse = [];
+            let gasCans = [];
+            let gas = [];
+            let fires = [];
+            let grid = [];
+            let burning = false;
+            let burnIndex = 0;
+            let totalWalls = 0;
+            let burnedWalls = 0;
+            let ignitedGas = new Set();
+            let gasCanCount = 5;
+            let autoTimer = 10;
+            let gameOver = false;
+            let timerInterval;
+
+            function initGrid() {
+                for (let y = 0; y < ROWS; y++) {
+                    grid[y] = [];
+                    for (let x = 0; x < COLS; x++) {
+                        if (x === 0 || y === 0 || x === COLS-1 || y === ROWS-1) {
+                            grid[y][x] = 'wall';
+                        } else {
+                            grid[y][x] = 'floor';
+                        }
+                    }
+                }
+                
+                for (let y = 2; y < ROWS - 2; y++) {
+                    for (let x = 2; x < COLS - 2; x++) {
+                        if (Math.random() < 0.28 && canPlaceWall(x, y)) {
+                            grid[y][x] = 'wall';
+                        }
+                    }
+                }
+                
+                totalWalls = 0;
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        if (grid[y][x] === 'wall') totalWalls++;
+                    }
+                }
+            }
+            
+            function canPlaceWall(x, y) {
+                if (Math.abs(x - 1) < 3 && Math.abs(y - 1) < 3) return false;
+                const adjacent = [
+                    { x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }
+                ];
+                let floorCount = 0;
+                adjacent.forEach(adj => {
+                    if (adj.x > 0 && adj.x < COLS-1 && adj.y > 0 && adj.y < ROWS-1 && grid[adj.y][adj.x] === 'floor') {
+                        floorCount++;
+                    }
+                });
+                return floorCount >= 2;
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        const px = x * GRID_SIZE;
+                        const py = y * GRID_SIZE;
+                        
+                        if (grid[y][x] === 'wall') {
+                            ctx.fillStyle = '#666';
+                            ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
+                        } else if (grid[y][x] === 'burned') {
+                            ctx.fillStyle = '#333';
+                            ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
+                        } else if (grid[y][x] === 'burning') {
+                            ctx.fillStyle = '#f80';
+                            ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
+                        }
+                    }
+                }
+
+                fuse.forEach((f, i) => {
+                    if (burning && i < burnIndex) {
+                        ctx.fillStyle = '#f80';
+                    } else {
+                        ctx.fillStyle = '#ff0';
+                    }
+                    ctx.fillRect(f.x * GRID_SIZE + 8, f.y * GRID_SIZE + 8, 4, 4);
+                });
+
+                gas.forEach(g => {
+                    const key = `${g.x},${g.y}`;
+                    ctx.fillStyle = ignitedGas.has(key) ? '#f40' : '#0f8';
+                    ctx.fillRect(g.x * GRID_SIZE + 4, g.y * GRID_SIZE + 4, 12, 12);
+                });
+
+                ctx.fillStyle = '#f00';
+                gasCans.forEach(g => {
+                    ctx.fillRect(g.x * GRID_SIZE + 6, g.y * GRID_SIZE + 6, 8, 8);
+                });
+
+                ctx.fillStyle = '#0f0';
+                ctx.fillRect(player.x * GRID_SIZE + 2, player.y * GRID_SIZE + 2, 16, 16);
+            }
+
+            function isValidMove(x, y) {
+                return x >= 0 && x < COLS && y >= 0 && y < ROWS && grid[y][x] !== 'wall';
+            }
+
+            function autoLayFuse() {
+                if (grid[player.y][player.x] === 'floor' && !fuse.find(f => f.x === player.x && f.y === player.y)) {
+                    fuse.push({ x: player.x, y: player.y });
+                }
+            }
+
+            function dropGasCan() {
+                if (gasCanCount > 0 && grid[player.y][player.x] === 'floor' && !gasCans.find(g => g.x === player.x && g.y === player.y)) {
+                    gasCans.push({ x: player.x, y: player.y });
+                    gasCanCount--;
+                    spreadGasSlowly(player.x, player.y);
+                    updateUI();
+                }
+            }
+
+            function spreadGasSlowly(startX, startY) {
+                const visited = new Set();
+                const queue = [{ x: startX, y: startY, dist: 0 }];
+                let gasCount = 0;
+                
+                const spreadStep = () => {
+                    if (queue.length === 0 || gasCount >= 10) return;
+                    
+                    const { x, y, dist } = queue.shift();
+                    const key = `${x},${y}`;
+                    
+                    if (visited.has(key) || x < 0 || x >= COLS || y < 0 || y >= ROWS || grid[y][x] === 'wall' || dist > 3) {
+                        setTimeout(spreadStep, 100);
+                        return;
+                    }
+                    visited.add(key);
+                    
+                    if (!gas.find(g => g.x === x && g.y === y)) {
+                        gas.push({ x, y });
+                        gasCount++;
+                    }
+                    
+                    queue.push({ x: x + 1, y, dist: dist + 1 }, { x: x - 1, y, dist: dist + 1 }, { x, y: y + 1, dist: dist + 1 }, { x, y: y - 1, dist: dist + 1 });
+                    
+                    draw();
+                    setTimeout(spreadStep, 100);
+                };
+                
+                spreadStep();
+            }
+
+            function igniteFuse() {
+                if (fuse.length === 0 || burning || gameOver) return;
+                burning = true;
+                burnIndex = 0;
+                clearInterval(timerInterval);
+                burnFuseStep();
+            }
+
+            function burnFuseStep() {
+                if (burnIndex >= fuse.length) {
+                    setTimeout(endGame, 2000);
+                    return;
+                }
+
+                const current = fuse[burnIndex];
+                
+                if (current.x === player.x && current.y === player.y) {
+                    gameOver = true;
+                    setTimeout(endGame, 1000);
+                    return;
+                }
+                
+                const gasAtPos = gas.find(g => g.x === current.x && g.y === current.y);
+                if (gasAtPos) {
+                    igniteGasAt(current.x, current.y);
+                }
+
+                burnIndex++;
+                draw();
+                setTimeout(burnFuseStep, 200);
+            }
+
+            function igniteGasAt(startX, startY) {
+                const visited = new Set();
+                const queue = [{ x: startX, y: startY }];
+                
+                while (queue.length > 0) {
+                    const { x, y } = queue.shift();
+                    const key = `${x},${y}`;
+                    
+                    if (visited.has(key) || !gas.find(g => g.x === x && g.y === y)) continue;
+                    visited.add(key);
+                    ignitedGas.add(key);
+                    
+                    const adjacent = [
+                        { x: x + 1, y },
+                        { x: x - 1, y },
+                        { x, y: y + 1 },
+                        { x, y: y - 1 }
+                    ];
+
+                    adjacent.forEach(adj => {
+                        if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS) {
+                            if (grid[adj.y][adj.x] === 'wall') {
+                                grid[adj.y][adj.x] = 'burning';
+                            } else if (gas.find(g => g.x === adj.x && g.y === adj.y)) {
+                                queue.push(adj);
+                            }
+                        }
+                    });
+                }
+                
+                spreadFire();
+            }
+
+            function spreadFire() {
+                const spreadStep = () => {
+                    let newFires = false;
+                    
+                    for (let y = 0; y < ROWS; y++) {
+                        for (let x = 0; x < COLS; x++) {
+                            if (grid[y][x] === 'burning') {
+                                grid[y][x] = 'burned';
+                                burnedWalls++;
+                                score += 10;
+                                
+                                const adjacent = [
+                                    { x: x + 1, y },
+                                    { x: x - 1, y },
+                                    { x, y: y + 1 },
+                                    { x, y: y - 1 }
+                                ];
+
+                                adjacent.forEach(adj => {
+                                    if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS && grid[adj.y][adj.x] === 'wall') {
+                                        grid[adj.y][adj.x] = 'burning';
+                                        newFires = true;
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    
+                    updateUI();
+                    draw();
+                    
+                    if (newFires) {
+                        setTimeout(spreadStep, 500);
+                    }
+                };
+                
+                setTimeout(spreadStep, 200);
+            }
+
+            function updateUI() {
+                const percentage = totalWalls > 0 ? Math.round((burnedWalls / totalWalls) * 100) : 0;
+                scoreEl.textContent = `Score: ${score} | Bombs: ${gasCanCount} | Timer: ${autoTimer}s | ${burnedWalls}/${totalWalls} walls (${percentage}%)`;
+            }
+            
+            function endGame() {
+                gameOver = true;
+                clearInterval(timerInterval);
+                const percentage = totalWalls > 0 ? Math.round((burnedWalls / totalWalls) * 100) : 0;
+                const usedBombs = 5 - gasCanCount;
+                alert(`Game Over!\nWalls Burned: ${percentage}%\nBombs Used: ${usedBombs}/5\nFinal Score: ${score}`);
+            }
+            
+            function startTimer() {
+                timerInterval = setInterval(() => {
+                    if (!burning && !gameOver) {
+                        autoTimer--;
+                        updateUI();
+                        if (autoTimer <= 0) {
+                            igniteFuse();
+                        }
+                    }
+                }, 1000);
+            }
+
+            document.addEventListener('keydown', (e) => {
+                let newX = player.x;
+                let newY = player.y;
+
+                switch(e.key.toLowerCase()) {
+                    case 'w': newY--; break;
+                    case 's': newY++; break;
+                    case 'a': newX--; break;
+                    case 'd': newX++; break;
+                    case 'f': igniteFuse(); break;
+                    case 'b': dropGasCan(); break;
+                }
+
+                if (isValidMove(newX, newY) && !gameOver) {
+                    player.x = newX;
+                    player.y = newY;
+                    autoLayFuse();
+                }
+
+                updateUI();
+                draw();
+            });
+
+            initGrid();
+            updateUI();
+            startTimer();
+            draw();
+        }
+    </script>
+</body>
+</html>
