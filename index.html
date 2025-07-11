@@ -19,7 +19,7 @@
     <div id="intro">
         <div id="logo">PYRO ][ REIGNITED</div>
         <div id="subtitle">The Ultimate Destruction Experience</div>
-        <button id="startBtn" onclick="startGame()">START GAME</button>
+        <button id="startBtn" onclick="startGame()" onmouseover="play8BitMusic()">START GAME</button>
     </div>
     
     <div id="game">
@@ -31,7 +31,44 @@
     </div>
 
     <script>
+        // 8-bit music generator
+        let audioContext;
+        let musicPlaying = false;
+        
+        function play8BitMusic() {
+            if (musicPlaying) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            musicPlaying = true;
+            
+            const melody = [262, 294, 330, 349, 392, 440, 494, 523]; // C major scale
+            const rhythm = [0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 0.5, 1];
+            let noteIndex = 0;
+            
+            function playNote() {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                
+                osc.frequency.setValueAtTime(melody[noteIndex % melody.length], audioContext.currentTime);
+                osc.type = 'square';
+                
+                gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + rhythm[noteIndex % rhythm.length]);
+                
+                osc.start(audioContext.currentTime);
+                osc.stop(audioContext.currentTime + rhythm[noteIndex % rhythm.length]);
+                
+                noteIndex++;
+                setTimeout(playNote, rhythm[(noteIndex - 1) % rhythm.length] * 1000);
+            }
+            
+            playNote();
+        }
+        
         function startGame() {
+            play8BitMusic();
             document.getElementById('intro').style.display = 'none';
             document.getElementById('game').style.display = 'block';
             initializeGame();
