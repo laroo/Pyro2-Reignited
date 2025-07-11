@@ -36,7 +36,7 @@
         let burnIndex = 0;
         let totalWalls = 0;
         let burnedWalls = 0;
-        let gasIgnited = false;
+        let ignitedGas = new Set();
 
         // Initialize grid with walls and rooms
         function initGrid() {
@@ -45,15 +45,20 @@
                 for (let x = 0; x < COLS; x++) {
                     if (x === 0 || y === 0 || x === COLS-1 || y === ROWS-1) {
                         grid[y][x] = 'wall';
-                    } else if (Math.random() < 0.3) {
+                    } else if (Math.random() < 0.25) {
                         grid[y][x] = 'wall';
                     } else {
                         grid[y][x] = 'floor';
                     }
                 }
             }
-            // Ensure player start position is clear
-            grid[1][1] = 'floor';
+            
+            // Ensure walkable paths
+            for (let y = 1; y < ROWS - 1; y += 2) {
+                for (let x = 1; x < COLS - 1; x += 2) {
+                    grid[y][x] = 'floor';
+                }
+            }
             
             // Count total walls
             totalWalls = 0;
@@ -98,7 +103,8 @@
 
             // Draw gas
             gas.forEach(g => {
-                ctx.fillStyle = gasIgnited ? '#f40' : '#0f8';
+                const key = `${g.x},${g.y}`;
+                ctx.fillStyle = ignitedGas.has(key) ? '#f40' : '#0f8';
                 ctx.fillRect(g.x * GRID_SIZE + 4, g.y * GRID_SIZE + 4, 12, 12);
             });
 
@@ -187,8 +193,9 @@
             const current = fuse[burnIndex];
             
             // Check for gas at current position
-            if (gas.find(g => g.x === current.x && g.y === current.y)) {
-                igniteGas();
+            const gasAtPos = gas.find(g => g.x === current.x && g.y === current.y);
+            if (gasAtPos) {
+                igniteGasAt(current.x, current.y);
             }
 
             burnIndex++;
@@ -196,24 +203,37 @@
             setTimeout(burnFuseStep, 200);
         }
 
-        function igniteGas() {
-            gasIgnited = true;
+        function igniteGasAt(startX, startY) {
+            const visited = new Set();
+            const queue = [{ x: startX, y: startY }];
             
-            // Burn all adjacent walls to gas
-            gas.forEach(g => {
+            // Find connected gas area
+            while (queue.length > 0) {
+                const { x, y } = queue.shift();
+                const key = `${x},${y}`;
+                
+                if (visited.has(key) || !gas.find(g => g.x === x && g.y === y)) continue;
+                visited.add(key);
+                ignitedGas.add(key);
+                
+                // Burn adjacent walls
                 const adjacent = [
-                    { x: g.x + 1, y: g.y },
-                    { x: g.x - 1, y: g.y },
-                    { x: g.x, y: g.y + 1 },
-                    { x: g.x, y: g.y - 1 }
+                    { x: x + 1, y },
+                    { x: x - 1, y },
+                    { x, y: y + 1 },
+                    { x, y: y - 1 }
                 ];
 
                 adjacent.forEach(adj => {
-                    if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS && grid[adj.y][adj.x] === 'wall') {
-                        grid[adj.y][adj.x] = 'burning';
+                    if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS) {
+                        if (grid[adj.y][adj.x] === 'wall') {
+                            grid[adj.y][adj.x] = 'burning';
+                        } else if (gas.find(g => g.x === adj.x && g.y === adj.y)) {
+                            queue.push(adj);
+                        }
                     }
                 });
-            });
+            }
             
             spreadFire();
         }

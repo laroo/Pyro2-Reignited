@@ -18,3 +18,7 @@ Gas can should only spread out a few block; max of 10 block per gas can
 5th
 
 Great. When a gas can is dropped it should spread out slowly. Once the gas is burned change the color.
+
+6th
+
+Fix: all gas cans explode at the same time instead of waiting for the fuse or a near wall exploding. Floorplan generator sometimes causes the user not be able to walk for a few blocks. Make sure there are no wall blocking the user from walking around.
