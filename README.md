@@ -26,3 +26,15 @@ Fix: all gas cans explode at the same time instead of waiting for the fuse or a 
 7th
 
 Reducing wall density from 30% to 25% is a bit too much; make it smarter. Slow down burning the walls and animate it. Make sure the user has max 5 gas bombs and add an indicator how many bombs there are left. Start the fuse automatically after 10 seconds if the user didn't start it yet and show a timer. If the fuse reaches the user it's the end of the game. Wait until the fuse and walls are burned and show the final burned percentage and used bombs.
+
+8th
+
+Time for an intro screen with a logo. The game will be called "Pyro ][ Reignited" (reference to the original game). Create the same pixelated logo as the original game with the new game. See original intro screen: https://i.ytimg.com/vi/7IoD7YnnI-c/hq720.jpg 
+
+9th
+
+add a matching 8 bit music track.
+
+10th
+
+The music is horrible; make the tune more interesting. Added drums or similar. Maybe use a library like Band.js?

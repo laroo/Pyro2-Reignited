@@ -19,7 +19,7 @@
     <div id="intro">
         <div id="logo">PYRO ][ REIGNITED</div>
         <div id="subtitle">The Ultimate Destruction Experience</div>
-        <button id="startBtn" onclick="startGame()" onmouseover="play8BitMusic()">START GAME</button>
+        <button id="startBtn" onclick="startGame()">START GAME</button>
     </div>
     
     <div id="game">
@@ -40,31 +40,58 @@
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             musicPlaying = true;
             
-            const melody = [262, 294, 330, 349, 392, 440, 494, 523]; // C major scale
-            const rhythm = [0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 0.5, 1];
-            let noteIndex = 0;
+            // Catchy melody pattern
+            const melody = [330, 392, 440, 392, 330, 294, 330, 392, 523, 494, 440, 392, 330, 294, 262, 330];
+            const bass = [165, 196, 220, 196, 165, 147, 165, 196, 262, 247, 220, 196, 165, 147, 131, 165];
+            const beatDuration = 0.3;
+            let beatCount = 0;
             
-            function playNote() {
-                const osc = audioContext.createOscillator();
-                const gain = audioContext.createGain();
+            function playBeat() {
+                const time = audioContext.currentTime;
                 
-                osc.connect(gain);
-                gain.connect(audioContext.destination);
+                // Melody
+                const melodyOsc = audioContext.createOscillator();
+                const melodyGain = audioContext.createGain();
+                melodyOsc.connect(melodyGain);
+                melodyGain.connect(audioContext.destination);
+                melodyOsc.frequency.setValueAtTime(melody[beatCount % melody.length], time);
+                melodyOsc.type = 'square';
+                melodyGain.gain.setValueAtTime(0.08, time);
+                melodyGain.gain.exponentialRampToValueAtTime(0.01, time + beatDuration);
+                melodyOsc.start(time);
+                melodyOsc.stop(time + beatDuration);
                 
-                osc.frequency.setValueAtTime(melody[noteIndex % melody.length], audioContext.currentTime);
-                osc.type = 'square';
+                // Bass
+                const bassOsc = audioContext.createOscillator();
+                const bassGain = audioContext.createGain();
+                bassOsc.connect(bassGain);
+                bassGain.connect(audioContext.destination);
+                bassOsc.frequency.setValueAtTime(bass[beatCount % bass.length], time);
+                bassOsc.type = 'sawtooth';
+                bassGain.gain.setValueAtTime(0.05, time);
+                bassGain.gain.exponentialRampToValueAtTime(0.01, time + beatDuration * 1.5);
+                bassOsc.start(time);
+                bassOsc.stop(time + beatDuration * 1.5);
                 
-                gain.gain.setValueAtTime(0.1, audioContext.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + rhythm[noteIndex % rhythm.length]);
+                // Drum (noise on beats 0, 4, 8, 12)
+                if (beatCount % 4 === 0) {
+                    const drumOsc = audioContext.createOscillator();
+                    const drumGain = audioContext.createGain();
+                    drumOsc.connect(drumGain);
+                    drumGain.connect(audioContext.destination);
+                    drumOsc.frequency.setValueAtTime(80, time);
+                    drumOsc.type = 'square';
+                    drumGain.gain.setValueAtTime(0.15, time);
+                    drumGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+                    drumOsc.start(time);
+                    drumOsc.stop(time + 0.1);
+                }
                 
-                osc.start(audioContext.currentTime);
-                osc.stop(audioContext.currentTime + rhythm[noteIndex % rhythm.length]);
-                
-                noteIndex++;
-                setTimeout(playNote, rhythm[(noteIndex - 1) % rhythm.length] * 1000);
+                beatCount++;
+                setTimeout(playBeat, beatDuration * 1000);
             }
             
-            playNote();
+            playBeat();
         }
         
         function startGame() {
