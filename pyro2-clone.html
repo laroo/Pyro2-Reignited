@@ -13,7 +13,7 @@
     <div class="score">Score: <span id="score">0</span></div>
     <canvas id="game" width="800" height="600"></canvas>
     <div class="controls">
-        <p>WASD: Move | F: Lay Fuse | B: Drop Bomb | SPACE: Ignite Fuse</p>
+        <p>WASD: Move (auto-lays fuse) | B: Drop Bomb | F: Ignite Fuse</p>
     </div>
 
     <script>
@@ -31,6 +31,8 @@
         let bombs = [];
         let fires = [];
         let grid = [];
+        let burning = false;
+        let burnIndex = 0;
 
         // Initialize grid with walls and rooms
         function initGrid() {
@@ -70,8 +72,12 @@
             }
 
             // Draw fuse
-            ctx.fillStyle = '#ff0';
-            fuse.forEach(f => {
+            fuse.forEach((f, i) => {
+                if (burning && i < burnIndex) {
+                    ctx.fillStyle = '#f80'; // Burned fuse
+                } else {
+                    ctx.fillStyle = '#ff0'; // Unburned fuse
+                }
                 ctx.fillRect(f.x * GRID_SIZE + 8, f.y * GRID_SIZE + 8, 4, 4);
             });
 
@@ -96,7 +102,7 @@
             return x >= 0 && x < COLS && y >= 0 && y < ROWS && grid[y][x] !== 'wall';
         }
 
-        function layFuse() {
+        function autoLayFuse() {
             if (grid[player.y][player.x] === 'floor' && !fuse.find(f => f.x === player.x && f.y === player.y)) {
                 fuse.push({ x: player.x, y: player.y });
             }
@@ -109,43 +115,31 @@
         }
 
         function igniteFuse() {
-            if (fuse.length === 0) return;
-            
-            // Find connected fuse path and explode bombs
-            const visited = new Set();
-            const queue = [fuse[0]];
-            
-            while (queue.length > 0) {
-                const current = queue.shift();
-                const key = `${current.x},${current.y}`;
-                
-                if (visited.has(key)) continue;
-                visited.add(key);
+            if (fuse.length === 0 || burning) return;
+            burning = true;
+            burnIndex = 0;
+            burnFuseStep();
+        }
 
-                // Check for bomb at this position
-                const bomb = bombs.find(b => b.x === current.x && b.y === current.y);
-                if (bomb) {
-                    explodeBomb(bomb);
-                }
-
-                // Find connected fuse segments
-                const neighbors = [
-                    { x: current.x + 1, y: current.y },
-                    { x: current.x - 1, y: current.y },
-                    { x: current.x, y: current.y + 1 },
-                    { x: current.x, y: current.y - 1 }
-                ];
-
-                neighbors.forEach(n => {
-                    if (fuse.find(f => f.x === n.x && f.y === n.y)) {
-                        queue.push(n);
-                    }
-                });
+        function burnFuseStep() {
+            if (burnIndex >= fuse.length) {
+                burning = false;
+                fuse.length = 0;
+                bombs.length = 0;
+                return;
             }
 
-            // Clear fuse and bombs
-            fuse.length = 0;
-            bombs.length = 0;
+            const current = fuse[burnIndex];
+            
+            // Check for bomb at current position
+            const bomb = bombs.find(b => b.x === current.x && b.y === current.y);
+            if (bomb) {
+                explodeBomb(bomb);
+            }
+
+            burnIndex++;
+            draw();
+            setTimeout(burnFuseStep, 200);
         }
 
         function explodeBomb(bomb) {
@@ -195,14 +189,15 @@
                 case 's': newY++; break;
                 case 'a': newX--; break;
                 case 'd': newX++; break;
-                case 'f': layFuse(); break;
+                case 'f': igniteFuse(); break;
                 case 'b': dropBomb(); break;
-                case ' ': igniteFuse(); break;
+
             }
 
             if (isValidMove(newX, newY)) {
                 player.x = newX;
                 player.y = newY;
+                autoLayFuse();
             }
 
             scoreEl.textContent = score;
