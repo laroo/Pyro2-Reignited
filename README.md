@@ -1,3 +1,10 @@
+# Pyro ][ Reignited
+
+https://laroo.github.io/Pyro2-Reignited/
+
+Created using Amazon Q: https://builder.aws.com/content/2y6egGcPAGQs8EwtQUM9KAONojz/build-games-challenge-build-classics-with-amazon-q-developer-cli
+
+## Iterations:
 
 First iteration:
 
