@@ -137,21 +137,23 @@
 
         function spreadGas(startX, startY) {
             const visited = new Set();
-            const queue = [{ x: startX, y: startY }];
+            const queue = [{ x: startX, y: startY, dist: 0 }];
+            let gasCount = 0;
             
-            while (queue.length > 0) {
-                const { x, y } = queue.shift();
+            while (queue.length > 0 && gasCount < 10) {
+                const { x, y, dist } = queue.shift();
                 const key = `${x},${y}`;
                 
-                if (visited.has(key) || x < 0 || x >= COLS || y < 0 || y >= ROWS || grid[y][x] === 'wall') continue;
+                if (visited.has(key) || x < 0 || x >= COLS || y < 0 || y >= ROWS || grid[y][x] === 'wall' || dist > 3) continue;
                 visited.add(key);
                 
                 if (!gas.find(g => g.x === x && g.y === y)) {
                     gas.push({ x, y });
+                    gasCount++;
                 }
                 
                 // Spread to adjacent floor tiles
-                queue.push({ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 });
+                queue.push({ x: x + 1, y, dist: dist + 1 }, { x: x - 1, y, dist: dist + 1 }, { x, y: y + 1, dist: dist + 1 }, { x, y: y - 1, dist: dist + 1 });
             }
         }
 

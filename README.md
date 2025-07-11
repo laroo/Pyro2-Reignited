@@ -9,4 +9,8 @@ Basic game mechanics work great. Instead of laying the fuse make that will will 
 
 3rd
 
-Make the bombs gas cans where the gas will spread through between the walls. Once the fuse hits the gas it will burn down the adjacent walls. These ignited walls will keep burning until there is no direct connected walls anymore. This makes the destruction more extreme. Keep score on how many wall blocks are burned and show a percentage of burned wall blocks and totaal wall blocks
+Make the bombs gas cans where the gas will spread through between the walls. Once the fuse hits the gas it will burn down the adjacent walls. These ignited walls will keep burning until there is no direct connected walls anymore. This makes the destruction more extreme. Keep score on how many wall blocks are burned and show a percentage of burned wall blocks and total wall blocks
+
+4th
+
+Gas can should only spread out a few block; max of 10 block per gas can
