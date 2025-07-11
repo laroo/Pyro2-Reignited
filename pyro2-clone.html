@@ -10,10 +10,10 @@
     </style>
 </head>
 <body>
-    <div class="score">Score: <span id="score">0</span></div>
+    <div class="score">Score: <span id="score">0 (0/0 walls - 0%)</span></div>
     <canvas id="game" width="800" height="600"></canvas>
     <div class="controls">
-        <p>WASD: Move (auto-lays fuse) | B: Drop Bomb | F: Ignite Fuse</p>
+        <p>WASD: Move (auto-lays fuse) | B: Drop Gas Can | F: Ignite Fuse</p>
     </div>
 
     <script>
@@ -28,11 +28,14 @@
         let player = { x: 1, y: 1 };
         let score = 0;
         let fuse = [];
-        let bombs = [];
+        let gasCans = [];
+        let gas = [];
         let fires = [];
         let grid = [];
         let burning = false;
         let burnIndex = 0;
+        let totalWalls = 0;
+        let burnedWalls = 0;
 
         // Initialize grid with walls and rooms
         function initGrid() {
@@ -50,6 +53,14 @@
             }
             // Ensure player start position is clear
             grid[1][1] = 'floor';
+            
+            // Count total walls
+            totalWalls = 0;
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (grid[y][x] === 'wall') totalWalls++;
+                }
+            }
         }
 
         function draw() {
@@ -67,6 +78,9 @@
                     } else if (grid[y][x] === 'burned') {
                         ctx.fillStyle = '#333';
                         ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
+                    } else if (grid[y][x] === 'burning') {
+                        ctx.fillStyle = '#f80';
+                        ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
                     }
                 }
             }
@@ -81,10 +95,16 @@
                 ctx.fillRect(f.x * GRID_SIZE + 8, f.y * GRID_SIZE + 8, 4, 4);
             });
 
-            // Draw bombs
+            // Draw gas
+            ctx.fillStyle = '#0f8';
+            gas.forEach(g => {
+                ctx.fillRect(g.x * GRID_SIZE + 4, g.y * GRID_SIZE + 4, 12, 12);
+            });
+
+            // Draw gas cans
             ctx.fillStyle = '#f00';
-            bombs.forEach(b => {
-                ctx.fillRect(b.x * GRID_SIZE + 6, b.y * GRID_SIZE + 6, 8, 8);
+            gasCans.forEach(g => {
+                ctx.fillRect(g.x * GRID_SIZE + 6, g.y * GRID_SIZE + 6, 8, 8);
             });
 
             // Draw fires
@@ -108,9 +128,30 @@
             }
         }
 
-        function dropBomb() {
-            if (grid[player.y][player.x] === 'floor' && !bombs.find(b => b.x === player.x && b.y === player.y)) {
-                bombs.push({ x: player.x, y: player.y });
+        function dropGasCan() {
+            if (grid[player.y][player.x] === 'floor' && !gasCans.find(g => g.x === player.x && g.y === player.y)) {
+                gasCans.push({ x: player.x, y: player.y });
+                spreadGas(player.x, player.y);
+            }
+        }
+
+        function spreadGas(startX, startY) {
+            const visited = new Set();
+            const queue = [{ x: startX, y: startY }];
+            
+            while (queue.length > 0) {
+                const { x, y } = queue.shift();
+                const key = `${x},${y}`;
+                
+                if (visited.has(key) || x < 0 || x >= COLS || y < 0 || y >= ROWS || grid[y][x] === 'wall') continue;
+                visited.add(key);
+                
+                if (!gas.find(g => g.x === x && g.y === y)) {
+                    gas.push({ x, y });
+                }
+                
+                // Spread to adjacent floor tiles
+                queue.push({ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 });
             }
         }
 
@@ -125,16 +166,16 @@
             if (burnIndex >= fuse.length) {
                 burning = false;
                 fuse.length = 0;
-                bombs.length = 0;
+                gasCans.length = 0;
+                gas.length = 0;
                 return;
             }
 
             const current = fuse[burnIndex];
             
-            // Check for bomb at current position
-            const bomb = bombs.find(b => b.x === current.x && b.y === current.y);
-            if (bomb) {
-                explodeBomb(bomb);
+            // Check for gas at current position
+            if (gas.find(g => g.x === current.x && g.y === current.y)) {
+                igniteGas();
             }
 
             burnIndex++;
@@ -142,41 +183,69 @@
             setTimeout(burnFuseStep, 200);
         }
 
-        function explodeBomb(bomb) {
-            const firePositions = [
-                { x: bomb.x, y: bomb.y },
-                { x: bomb.x + 1, y: bomb.y },
-                { x: bomb.x - 1, y: bomb.y },
-                { x: bomb.x, y: bomb.y + 1 },
-                { x: bomb.x, y: bomb.y - 1 }
-            ];
+        function igniteGas() {
+            // Burn all adjacent walls to gas
+            gas.forEach(g => {
+                const adjacent = [
+                    { x: g.x + 1, y: g.y },
+                    { x: g.x - 1, y: g.y },
+                    { x: g.x, y: g.y + 1 },
+                    { x: g.x, y: g.y - 1 }
+                ];
 
-            firePositions.forEach(pos => {
-                if (pos.x >= 0 && pos.x < COLS && pos.y >= 0 && pos.y < ROWS) {
-                    fires.push(pos);
-                    
-                    // Burn adjacent walls
-                    const adjacent = [
-                        { x: pos.x + 1, y: pos.y },
-                        { x: pos.x - 1, y: pos.y },
-                        { x: pos.x, y: pos.y + 1 },
-                        { x: pos.x, y: pos.y - 1 }
-                    ];
-
-                    adjacent.forEach(adj => {
-                        if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS && grid[adj.y][adj.x] === 'wall') {
-                            grid[adj.y][adj.x] = 'burned';
-                            score += 10;
-                        }
-                    });
-                }
+                adjacent.forEach(adj => {
+                    if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS && grid[adj.y][adj.x] === 'wall') {
+                        grid[adj.y][adj.x] = 'burning';
+                    }
+                });
             });
+            
+            spreadFire();
+        }
 
-            // Clear fires after short delay
-            setTimeout(() => {
-                fires.length = 0;
+        function spreadFire() {
+            const spreadStep = () => {
+                let newFires = false;
+                
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        if (grid[y][x] === 'burning') {
+                            grid[y][x] = 'burned';
+                            burnedWalls++;
+                            score += 10;
+                            
+                            // Spread to adjacent walls
+                            const adjacent = [
+                                { x: x + 1, y },
+                                { x: x - 1, y },
+                                { x, y: y + 1 },
+                                { x, y: y - 1 }
+                            ];
+
+                            adjacent.forEach(adj => {
+                                if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS && grid[adj.y][adj.x] === 'wall') {
+                                    grid[adj.y][adj.x] = 'burning';
+                                    newFires = true;
+                                }
+                            });
+                        }
+                    }
+                }
+                
+                updateScore();
                 draw();
-            }, 500);
+                
+                if (newFires) {
+                    setTimeout(spreadStep, 300);
+                }
+            };
+            
+            setTimeout(spreadStep, 100);
+        }
+
+        function updateScore() {
+            const percentage = totalWalls > 0 ? Math.round((burnedWalls / totalWalls) * 100) : 0;
+            scoreEl.textContent = `${score} (${burnedWalls}/${totalWalls} walls - ${percentage}%)`;
         }
 
         // Input handling
@@ -190,7 +259,7 @@
                 case 'a': newX--; break;
                 case 'd': newX++; break;
                 case 'f': igniteFuse(); break;
-                case 'b': dropBomb(); break;
+                case 'b': dropGasCan(); break;
 
             }
 
@@ -200,7 +269,7 @@
                 autoLayFuse();
             }
 
-            scoreEl.textContent = score;
+            updateScore();
             draw();
         });
 
