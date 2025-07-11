@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pyro 2 Clone</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial; background: #222; color: white; }
+        canvas { border: 2px solid #666; background: #000; }
+        .controls { margin: 10px 0; }
+        .score { font-size: 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="score">Score: <span id="score">0</span></div>
+    <canvas id="game" width="800" height="600"></canvas>
+    <div class="controls">
+        <p>WASD: Move | F: Lay Fuse | B: Drop Bomb | SPACE: Ignite Fuse</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+
+        const GRID_SIZE = 20;
+        const COLS = canvas.width / GRID_SIZE;
+        const ROWS = canvas.height / GRID_SIZE;
+
+        let player = { x: 1, y: 1 };
+        let score = 0;
+        let fuse = [];
+        let bombs = [];
+        let fires = [];
+        let grid = [];
+
+        // Initialize grid with walls and rooms
+        function initGrid() {
+            for (let y = 0; y < ROWS; y++) {
+                grid[y] = [];
+                for (let x = 0; x < COLS; x++) {
+                    if (x === 0 || y === 0 || x === COLS-1 || y === ROWS-1) {
+                        grid[y][x] = 'wall';
+                    } else if (Math.random() < 0.3) {
+                        grid[y][x] = 'wall';
+                    } else {
+                        grid[y][x] = 'floor';
+                    }
+                }
+            }
+            // Ensure player start position is clear
+            grid[1][1] = 'floor';
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    const px = x * GRID_SIZE;
+                    const py = y * GRID_SIZE;
+                    
+                    if (grid[y][x] === 'wall') {
+                        ctx.fillStyle = '#666';
+                        ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
+                    } else if (grid[y][x] === 'burned') {
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
+                    }
+                }
+            }
+
+            // Draw fuse
+            ctx.fillStyle = '#ff0';
+            fuse.forEach(f => {
+                ctx.fillRect(f.x * GRID_SIZE + 8, f.y * GRID_SIZE + 8, 4, 4);
+            });
+
+            // Draw bombs
+            ctx.fillStyle = '#f00';
+            bombs.forEach(b => {
+                ctx.fillRect(b.x * GRID_SIZE + 6, b.y * GRID_SIZE + 6, 8, 8);
+            });
+
+            // Draw fires
+            ctx.fillStyle = '#f80';
+            fires.forEach(f => {
+                ctx.fillRect(f.x * GRID_SIZE + 4, f.y * GRID_SIZE + 4, 12, 12);
+            });
+
+            // Draw player
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(player.x * GRID_SIZE + 2, player.y * GRID_SIZE + 2, 16, 16);
+        }
+
+        function isValidMove(x, y) {
+            return x >= 0 && x < COLS && y >= 0 && y < ROWS && grid[y][x] !== 'wall';
+        }
+
+        function layFuse() {
+            if (grid[player.y][player.x] === 'floor' && !fuse.find(f => f.x === player.x && f.y === player.y)) {
+                fuse.push({ x: player.x, y: player.y });
+            }
+        }
+
+        function dropBomb() {
+            if (grid[player.y][player.x] === 'floor' && !bombs.find(b => b.x === player.x && b.y === player.y)) {
+                bombs.push({ x: player.x, y: player.y });
+            }
+        }
+
+        function igniteFuse() {
+            if (fuse.length === 0) return;
+            
+            // Find connected fuse path and explode bombs
+            const visited = new Set();
+            const queue = [fuse[0]];
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const key = `${current.x},${current.y}`;
+                
+                if (visited.has(key)) continue;
+                visited.add(key);
+
+                // Check for bomb at this position
+                const bomb = bombs.find(b => b.x === current.x && b.y === current.y);
+                if (bomb) {
+                    explodeBomb(bomb);
+                }
+
+                // Find connected fuse segments
+                const neighbors = [
+                    { x: current.x + 1, y: current.y },
+                    { x: current.x - 1, y: current.y },
+                    { x: current.x, y: current.y + 1 },
+                    { x: current.x, y: current.y - 1 }
+                ];
+
+                neighbors.forEach(n => {
+                    if (fuse.find(f => f.x === n.x && f.y === n.y)) {
+                        queue.push(n);
+                    }
+                });
+            }
+
+            // Clear fuse and bombs
+            fuse.length = 0;
+            bombs.length = 0;
+        }
+
+        function explodeBomb(bomb) {
+            const firePositions = [
+                { x: bomb.x, y: bomb.y },
+                { x: bomb.x + 1, y: bomb.y },
+                { x: bomb.x - 1, y: bomb.y },
+                { x: bomb.x, y: bomb.y + 1 },
+                { x: bomb.x, y: bomb.y - 1 }
+            ];
+
+            firePositions.forEach(pos => {
+                if (pos.x >= 0 && pos.x < COLS && pos.y >= 0 && pos.y < ROWS) {
+                    fires.push(pos);
+                    
+                    // Burn adjacent walls
+                    const adjacent = [
+                        { x: pos.x + 1, y: pos.y },
+                        { x: pos.x - 1, y: pos.y },
+                        { x: pos.x, y: pos.y + 1 },
+                        { x: pos.x, y: pos.y - 1 }
+                    ];
+
+                    adjacent.forEach(adj => {
+                        if (adj.x >= 0 && adj.x < COLS && adj.y >= 0 && adj.y < ROWS && grid[adj.y][adj.x] === 'wall') {
+                            grid[adj.y][adj.x] = 'burned';
+                            score += 10;
+                        }
+                    });
+                }
+            });
+
+            // Clear fires after short delay
+            setTimeout(() => {
+                fires.length = 0;
+                draw();
+            }, 500);
+        }
+
+        // Input handling
+        document.addEventListener('keydown', (e) => {
+            let newX = player.x;
+            let newY = player.y;
+
+            switch(e.key.toLowerCase()) {
+                case 'w': newY--; break;
+                case 's': newY++; break;
+                case 'a': newX--; break;
+                case 'd': newX++; break;
+                case 'f': layFuse(); break;
+                case 'b': dropBomb(); break;
+                case ' ': igniteFuse(); break;
+            }
+
+            if (isValidMove(newX, newY)) {
+                player.x = newX;
+                player.y = newY;
+            }
+
+            scoreEl.textContent = score;
+            draw();
+        });
+
+        // Initialize and start
+        initGrid();
+        draw();
+    </script>
+</body>
+</html>
