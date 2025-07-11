@@ -22,3 +22,7 @@ Great. When a gas can is dropped it should spread out slowly. Once the gas is bu
 6th
 
 Fix: all gas cans explode at the same time instead of waiting for the fuse or a near wall exploding. Floorplan generator sometimes causes the user not be able to walk for a few blocks. Make sure there are no wall blocking the user from walking around.
+
+7th
+
+Reducing wall density from 30% to 25% is a bit too much; make it smarter. Slow down burning the walls and animate it. Make sure the user has max 5 gas bombs and add an indicator how many bombs there are left. Start the fuse automatically after 10 seconds if the user didn't start it yet and show a timer. If the fuse reaches the user it's the end of the game. Wait until the fuse and walls are burned and show the final burned percentage and used bombs.

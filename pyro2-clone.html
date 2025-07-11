@@ -10,7 +10,7 @@
     </style>
 </head>
 <body>
-    <div class="score">Score: <span id="score">0 (0/0 walls - 0%)</span></div>
+    <div class="score"><span id="score">Score: 0 | Bombs: 5 | Timer: 10s | 0/0 walls (0%)</span></div>
     <canvas id="game" width="800" height="600"></canvas>
     <div class="controls">
         <p>WASD: Move (auto-lays fuse) | B: Drop Gas Can | F: Ignite Fuse</p>
@@ -37,6 +37,10 @@
         let totalWalls = 0;
         let burnedWalls = 0;
         let ignitedGas = new Set();
+        let gasCanCount = 5;
+        let autoTimer = 10;
+        let gameOver = false;
+        let timerInterval;
 
         // Initialize grid with walls and rooms
         function initGrid() {
@@ -45,18 +49,18 @@
                 for (let x = 0; x < COLS; x++) {
                     if (x === 0 || y === 0 || x === COLS-1 || y === ROWS-1) {
                         grid[y][x] = 'wall';
-                    } else if (Math.random() < 0.25) {
-                        grid[y][x] = 'wall';
                     } else {
                         grid[y][x] = 'floor';
                     }
                 }
             }
             
-            // Ensure walkable paths
-            for (let y = 1; y < ROWS - 1; y += 2) {
-                for (let x = 1; x < COLS - 1; x += 2) {
-                    grid[y][x] = 'floor';
+            // Add walls with connectivity check
+            for (let y = 2; y < ROWS - 2; y++) {
+                for (let x = 2; x < COLS - 2; x++) {
+                    if (Math.random() < 0.28 && canPlaceWall(x, y)) {
+                        grid[y][x] = 'wall';
+                    }
                 }
             }
             
@@ -67,6 +71,23 @@
                     if (grid[y][x] === 'wall') totalWalls++;
                 }
             }
+        }
+        
+        function canPlaceWall(x, y) {
+            // Don't block player start area
+            if (Math.abs(x - 1) < 3 && Math.abs(y - 1) < 3) return false;
+            
+            // Check if placing wall would block movement
+            const adjacent = [
+                { x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }
+            ];
+            let floorCount = 0;
+            adjacent.forEach(adj => {
+                if (adj.x > 0 && adj.x < COLS-1 && adj.y > 0 && adj.y < ROWS-1 && grid[adj.y][adj.x] === 'floor') {
+                    floorCount++;
+                }
+            });
+            return floorCount >= 2;
         }
 
         function draw() {
@@ -136,9 +157,11 @@
         }
 
         function dropGasCan() {
-            if (grid[player.y][player.x] === 'floor' && !gasCans.find(g => g.x === player.x && g.y === player.y)) {
+            if (gasCanCount > 0 && grid[player.y][player.x] === 'floor' && !gasCans.find(g => g.x === player.x && g.y === player.y)) {
                 gasCans.push({ x: player.x, y: player.y });
+                gasCanCount--;
                 spreadGasSlowly(player.x, player.y);
+                updateUI();
             }
         }
 
@@ -175,22 +198,27 @@
         }
 
         function igniteFuse() {
-            if (fuse.length === 0 || burning) return;
+            if (fuse.length === 0 || burning || gameOver) return;
             burning = true;
             burnIndex = 0;
+            clearInterval(timerInterval);
             burnFuseStep();
         }
 
         function burnFuseStep() {
             if (burnIndex >= fuse.length) {
-                burning = false;
-                fuse.length = 0;
-                gasCans.length = 0;
-                gas.length = 0;
+                setTimeout(endGame, 2000);
                 return;
             }
 
             const current = fuse[burnIndex];
+            
+            // Check if fuse reached player
+            if (current.x === player.x && current.y === player.y) {
+                gameOver = true;
+                setTimeout(endGame, 1000);
+                return;
+            }
             
             // Check for gas at current position
             const gasAtPos = gas.find(g => g.x === current.x && g.y === current.y);
@@ -267,20 +295,40 @@
                     }
                 }
                 
-                updateScore();
+                updateUI();
                 draw();
                 
                 if (newFires) {
-                    setTimeout(spreadStep, 300);
+                    setTimeout(spreadStep, 500);
                 }
             };
             
-            setTimeout(spreadStep, 100);
+            setTimeout(spreadStep, 200);
         }
 
-        function updateScore() {
+        function updateUI() {
             const percentage = totalWalls > 0 ? Math.round((burnedWalls / totalWalls) * 100) : 0;
-            scoreEl.textContent = `${score} (${burnedWalls}/${totalWalls} walls - ${percentage}%)`;
+            scoreEl.textContent = `Score: ${score} | Bombs: ${gasCanCount} | Timer: ${autoTimer}s | ${burnedWalls}/${totalWalls} walls (${percentage}%)`;
+        }
+        
+        function endGame() {
+            gameOver = true;
+            clearInterval(timerInterval);
+            const percentage = totalWalls > 0 ? Math.round((burnedWalls / totalWalls) * 100) : 0;
+            const usedBombs = 5 - gasCanCount;
+            alert(`Game Over!\nWalls Burned: ${percentage}%\nBombs Used: ${usedBombs}/5\nFinal Score: ${score}`);
+        }
+        
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                if (!burning && !gameOver) {
+                    autoTimer--;
+                    updateUI();
+                    if (autoTimer <= 0) {
+                        igniteFuse();
+                    }
+                }
+            }, 1000);
         }
 
         // Input handling
@@ -298,18 +346,20 @@
 
             }
 
-            if (isValidMove(newX, newY)) {
+            if (isValidMove(newX, newY) && !gameOver) {
                 player.x = newX;
                 player.y = newY;
                 autoLayFuse();
             }
 
-            updateScore();
+            updateUI();
             draw();
         });
 
         // Initialize and start
         initGrid();
+        updateUI();
+        startTimer();
         draw();
     </script>
 </body>
