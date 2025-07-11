@@ -14,3 +14,7 @@ Make the bombs gas cans where the gas will spread through between the walls. Onc
 4th
 
 Gas can should only spread out a few block; max of 10 block per gas can
+
+5th
+
+Great. When a gas can is dropped it should spread out slowly. Once the gas is burned change the color.

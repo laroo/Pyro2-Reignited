@@ -36,6 +36,7 @@
         let burnIndex = 0;
         let totalWalls = 0;
         let burnedWalls = 0;
+        let gasIgnited = false;
 
         // Initialize grid with walls and rooms
         function initGrid() {
@@ -96,8 +97,8 @@
             });
 
             // Draw gas
-            ctx.fillStyle = '#0f8';
             gas.forEach(g => {
+                ctx.fillStyle = gasIgnited ? '#f40' : '#0f8';
                 ctx.fillRect(g.x * GRID_SIZE + 4, g.y * GRID_SIZE + 4, 12, 12);
             });
 
@@ -131,20 +132,25 @@
         function dropGasCan() {
             if (grid[player.y][player.x] === 'floor' && !gasCans.find(g => g.x === player.x && g.y === player.y)) {
                 gasCans.push({ x: player.x, y: player.y });
-                spreadGas(player.x, player.y);
+                spreadGasSlowly(player.x, player.y);
             }
         }
 
-        function spreadGas(startX, startY) {
+        function spreadGasSlowly(startX, startY) {
             const visited = new Set();
             const queue = [{ x: startX, y: startY, dist: 0 }];
             let gasCount = 0;
             
-            while (queue.length > 0 && gasCount < 10) {
+            const spreadStep = () => {
+                if (queue.length === 0 || gasCount >= 10) return;
+                
                 const { x, y, dist } = queue.shift();
                 const key = `${x},${y}`;
                 
-                if (visited.has(key) || x < 0 || x >= COLS || y < 0 || y >= ROWS || grid[y][x] === 'wall' || dist > 3) continue;
+                if (visited.has(key) || x < 0 || x >= COLS || y < 0 || y >= ROWS || grid[y][x] === 'wall' || dist > 3) {
+                    setTimeout(spreadStep, 100);
+                    return;
+                }
                 visited.add(key);
                 
                 if (!gas.find(g => g.x === x && g.y === y)) {
@@ -152,9 +158,14 @@
                     gasCount++;
                 }
                 
-                // Spread to adjacent floor tiles
+                // Add adjacent tiles to queue
                 queue.push({ x: x + 1, y, dist: dist + 1 }, { x: x - 1, y, dist: dist + 1 }, { x, y: y + 1, dist: dist + 1 }, { x, y: y - 1, dist: dist + 1 });
-            }
+                
+                draw();
+                setTimeout(spreadStep, 100);
+            };
+            
+            spreadStep();
         }
 
         function igniteFuse() {
@@ -186,6 +197,8 @@
         }
 
         function igniteGas() {
+            gasIgnited = true;
+            
             // Burn all adjacent walls to gas
             gas.forEach(g => {
                 const adjacent = [
